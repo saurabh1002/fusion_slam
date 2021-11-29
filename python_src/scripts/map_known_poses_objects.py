@@ -14,6 +14,7 @@ import os
 import cv2
 import numpy as np
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 import open3d as o3d
 
@@ -63,26 +64,34 @@ if __name__=='__main__':
 
     rgb_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic()
     rgb_camera_intrinsic.set_intrinsics(640, 480, 517.3, 516.5, 318.6, 255.3)
-
-    merged_pcd = o3d.geometry.PointCloud()
-
-    for n in tqdm(range(num_frames),"Computing and stitching poincloud from rgbd frames", colour='green'):
-        masks, boxes, pred_cls = get_prediction(DATASET_PATH + rgb_frames_path[n], 0.8)
-        
+    
+    object_pcl_dict = {}
+    # masks(n, 480, 640), boxes(n, 2, 2), pred_cls(n,)
+    for n in tqdm(range(num_frames),"Computing and stitching pointcloud from rgbd frames", colour='green'):
         rgb_frame = o3d.io.read_image(DATASET_PATH + rgb_frames_path[n])
-        depth_frame = o3d.io.read_image(DATASET_PATH + depth_frames_path[n])
+        depth_frame_cv = cv2.imread(DATASET_PATH + depth_frames_path[n], cv2.CV_16UC1)
 
-        rgbd_frame = o3d.geometry.RGBDImage.create_from_tum_format(rgb_frame, depth_frame, convert_rgb_to_intensity=False)
+        masks, boxes, pred_cls = get_prediction(DATASET_PATH + rgb_frames_path[n], 0.8)
+        num_objects = masks.shape[0]
 
-        pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_frame, rgb_camera_intrinsic, extrinsic=gt_SE3_tf[n])
+        for i in range(num_objects):
+            depth_frame = o3d.geometry.Image(depth_frame_cv * masks[i])
+            rgbd_frame = o3d.geometry.RGBDImage.create_from_color_and_depth(rgb_frame, depth_frame, depth_scale=5000, convert_rgb_to_intensity=False)
+            pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_frame, rgb_camera_intrinsic, extrinsic=gt_SE3_tf[n])
 
-        merged_pcd += pcd
-        
-        # Downsample poincloud occassionally to reduce redundant points and computation cost
-        if (n % 5 == 0):
-            merged_pcd = merged_pcd.voxel_down_sample(0.02)
+            try:
+                pcd_tmp = object_pcl_dict[pred_cls[i]]
+                object_pcl_dict[pred_cls[i]] = pcd + pcd_tmp
+            except KeyError:
+                object_pcl_dict[pred_cls[i]] = pcd
+            if ((n+1) % 10 == 0):
+                object_pcl_dict[pred_cls[i]] = object_pcl_dict[pred_cls[i]].voxel_down_sample(0.0002)
 
-    voxel_map = o3d.geometry.VoxelGrid.create_from_point_cloud(merged_pcd, voxel_size=0.02)
-    # o3d.visualization.draw_geometries([voxel_map], 'TUM desk voxel map')
-    o3d.io.write_point_cloud(DATASET_PATH + 'pcl_map.xyz', merged_pcd, print_progress=True)
-    o3d.io.write_voxel_grid(DATASET_PATH + 'voxel_map.svx', voxel_map)
+    pcd = o3d.geometry.PointCloud()
+    for key in object_pcl_dict.keys():
+        print(pcd, key, object_pcl_dict[key])
+        o3d.visualization.draw_geometries([object_pcl_dict[key]], 'TV voxel map')
+        o3d.io.write_point_cloud(DATASET_PATH + 'results/' + key + '_pcl.xyzrgb', object_pcl_dict[key], print_progress=True)
+        pcd += object_pcl_dict[key]
+
+    o3d.visualization.draw_geometries([pcd], 'TV voxel map')

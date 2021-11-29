@@ -65,10 +65,13 @@ if __name__=='__main__':
     merged_pcd = o3d.geometry.PointCloud()
 
     for n in tqdm(range(num_frames),"Computing and stitching poincloud from rgbd frames", colour='green'):
-        rgb_frame = o3d.io.read_image(DATASET_PATH + rgb_frames_path[n])
-        depth_frame = o3d.io.read_image(DATASET_PATH + depth_frames_path[n])
+        rgb_frame_cv = cv2.imread(DATASET_PATH + rgb_frames_path[n])
+        depth_frame_cv = cv2.imread(DATASET_PATH + depth_frames_path[n], cv2.CV_16UC1)
 
-        rgbd_frame = o3d.geometry.RGBDImage.create_from_tum_format(rgb_frame, depth_frame, convert_rgb_to_intensity=False)
+        rgb_frame = o3d.geometry.Image(rgb_frame_cv)
+        depth_frame = o3d.geometry.Image(depth_frame_cv)
+
+        rgbd_frame = o3d.geometry.RGBDImage.create_from_color_and_depth(rgb_frame, depth_frame, depth_scale=5000, convert_rgb_to_intensity=False)
 
         pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_frame, rgb_camera_intrinsic, extrinsic=gt_SE3_tf[n])
 
@@ -76,9 +79,9 @@ if __name__=='__main__':
         
         # Downsample poincloud occassionally to reduce redundant points and computation cost
         if (n % 5 == 0):
-            merged_pcd = merged_pcd.voxel_down_sample(0.02)
+            merged_pcd = merged_pcd.voxel_down_sample(0.005)
 
-    voxel_map = o3d.geometry.VoxelGrid.create_from_point_cloud(merged_pcd, voxel_size=0.02)
-    # o3d.visualization.draw_geometries([voxel_map], 'TUM desk voxel map')
-    o3d.io.write_point_cloud(DATASET_PATH + 'pcl_map.xyz', merged_pcd, print_progress=True)
+    voxel_map = o3d.geometry.VoxelGrid.create_from_point_cloud(merged_pcd, voxel_size=0.04)
+    o3d.visualization.draw_geometries([voxel_map], 'TUM desk voxel map')
+    o3d.io.write_point_cloud(DATASET_PATH + 'results/pcl_full_map.xyzrgb', merged_pcd, print_progress=True)
     o3d.io.write_voxel_grid(DATASET_PATH + 'voxel_map.svx', voxel_map)

@@ -53,7 +53,7 @@ def get_prediction(img_path, threshold):
   masks = masks[:pred_t+1]
   pred_boxes = pred_boxes[:pred_t+1]
   pred_class = pred_class[:pred_t+1]
-  return masks, pred_boxes, pred_class
+  return np.array(masks), np.array(pred_boxes), np.array(pred_class)
 
 def random_colour_masks(image):
   colors = [[0, 255, 0],[0, 0, 255],[255, 0, 0],[0, 255, 255],[255, 255, 0],[255, 0, 255],[80, 70, 180],[250, 80, 190],[245, 145, 50],[70, 150, 250],[50, 190, 190]]
