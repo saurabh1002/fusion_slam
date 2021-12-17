@@ -67,7 +67,7 @@ if __name__=='__main__':
     
     object_pcl_dict = {}
     # masks(n, 480, 640), boxes(n, 2, 2), pred_cls(n,)
-    for n in tqdm(range(num_frames),"Computing and stitching pointcloud from rgbd frames", colour='green'):
+    for n in tqdm(range(15),"Computing and stitching pointcloud from rgbd frames", colour='green'):
         rgb_frame = o3d.io.read_image(DATASET_PATH + rgb_frames_path[n])
         depth_frame_cv = cv2.imread(DATASET_PATH + depth_frames_path[n], cv2.CV_16UC1)
 
@@ -91,6 +91,7 @@ if __name__=='__main__':
     for key in object_pcl_dict.keys():
         print(pcd, key, object_pcl_dict[key])
         o3d.visualization.draw_geometries([object_pcl_dict[key]], 'TV voxel map')
+        object_pcl_dict[key].remove_radius_outlier(10, 5)
         o3d.io.write_point_cloud(DATASET_PATH + 'results/' + key + '_pcl.xyzrgb', object_pcl_dict[key], print_progress=True)
         pcd += object_pcl_dict[key]
 
