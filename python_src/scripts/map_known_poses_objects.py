@@ -115,7 +115,7 @@ if __name__ == "__main__":
     for key in object_pcl_dict.keys():
         o3d.visualization.draw_geometries([object_pcl_dict[key]], key + "voxel map")
         o3d.io.write_point_cloud(
-            datadir + "results/" + key + "_pcl.xyzrgb",
+            "../../results/" + key + "_pcl.xyzrgb",
             object_pcl_dict[key],
             print_progress=True,
         )

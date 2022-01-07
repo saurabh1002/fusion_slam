@@ -59,7 +59,7 @@ def rgbd2pcl(datadir):
         pcd = truncate_pcl_3d(pcd, 90)
         # o3d.visualization.draw_geometries([pcd], "TUM desk voxel map")
         o3d.io.write_point_cloud(
-            datadir + "pcl/{}.xyzrgb".format(timestamp), pcd, print_progress=True
+            datadir + "pcl/{}.pcd".format(timestamp), pcd, print_progress=True
         )
 
 

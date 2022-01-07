@@ -166,7 +166,7 @@ if __name__ == "__main__":
         # if n % 5 == 0:
         merged_pcd = merged_pcd.voxel_down_sample(0.001)
 
-    np.savetxt(datadir + "results/poses_icp.txt", np.array(poses))
+    np.savetxt("../../results/poses_icp.txt", np.array(poses))
     voxel_map = o3d.geometry.VoxelGrid.create_from_point_cloud(
         merged_pcd, voxel_size=0.01
     )

@@ -17,9 +17,9 @@ from tqdm import tqdm
 
 import open3d as o3d
 
-if __name__=='__main__':
-    directory = '../../datasets/rgbd_dataset_freiburg1_desk/results/'
- 
+if __name__ == "__main__":
+    directory = "../../results/"
+
     for filename in os.scandir(directory):
         if filename.is_file():
             print(filename.path)

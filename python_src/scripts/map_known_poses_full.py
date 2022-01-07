@@ -38,7 +38,7 @@ def compute_SE3_tf(translation: np.ndarray, quaternion: np.ndarray) -> (np.ndarr
     T[:3, :3] = o3d.geometry.PointCloud.get_rotation_matrix_from_quaternion(quaternion)
     T[:3, 3] = translation
 
-    return np.linalg.inv(T)
+    return T
 
 
 if __name__ == "__main__":
@@ -61,5 +61,5 @@ if __name__ == "__main__":
     )
     o3d.visualization.draw_geometries([voxel_map], "TUM desk voxel map")
     o3d.io.write_point_cloud(
-        datadir + "results/pcl_full_map.xyzrgb", merged_pcd, print_progress=True
+        "../../results/pcl_full_map.pcd", merged_pcd, print_progress=True
     )
