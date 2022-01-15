@@ -67,22 +67,28 @@ class DatasetRGBD:
 class DatasetGroundTruth:
     def __init__(self, datadir):
         with open(datadir + "associations_rgbd_gt.txt", "r") as f:
+            self.rgb_paths = []
+            self.depth_paths = []
             self.timestamps_rgb = []
             self.origins = []
             self.rot_quat = []
             for line in f.readlines():
-                t_rgb, _, _, _, _, tx, ty, tz, qx, qy, qz, qw = line.rstrip("\n").split(
+                t_rgb, rgb_file, _, depth_file, _, tx, ty, tz, qx, qy, qz, qw = line.rstrip("\n").split(
                     " "
                 )
                 self.timestamps_rgb.append(float(t_rgb))
                 self.origins.append([float(tx), float(ty), float(tz)])
                 self.rot_quat.append([float(qw), float(qx), float(qy), float(qz)])
+                self.rgb_paths.append(datadir + rgb_file)
+                self.depth_paths.append(datadir + depth_file)
 
     def __len__(self) -> int:
         return len(self.timestamps_rgb)
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
         timestamp = self.timestamps_rgb[idx]
+        rgb_frame = cv2.imread(self.rgb_paths[idx])
+        depth_frame = cv2.imread(self.depth_paths[idx], cv2.CV_16UC1)
         origin = np.array(self.origins[idx])
         rot = np.array(self.rot_quat[idx])
-        return timestamp, origin, rot
+        return timestamp, rgb_frame, depth_frame, origin, rot
