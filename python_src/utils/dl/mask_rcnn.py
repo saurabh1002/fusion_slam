@@ -15,8 +15,6 @@ import os
 from typing import Tuple
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-import random
 
 from PIL import Image
 import torch
@@ -26,8 +24,6 @@ from torchvision import transforms as T
 import sys
 
 sys.path.append("..")
-from utils.dataloader import DatasetRGBD
-from utils.dl.mask_rcnn import get_prediction
 from utils.plots.opencv import random_colour_masks, show_object_masks
 
 
