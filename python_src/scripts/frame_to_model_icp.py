@@ -10,7 +10,6 @@
 # ==============================================================================
 # -- imports -------------------------------------------------------------------
 # ==============================================================================
-from importlib.util import module_for_loader
 import numpy as np
 import scipy.spatial.transform as tf
 
@@ -65,8 +64,6 @@ if __name__ == "__main__":
     )
 
     for i, [t, rgb_cv2, depth_cv2] in tqdm(enumerate(data)):
-        # if (i == 100):
-        #     break
         rgb_o3d = o3d.geometry.Image(rgb_cv2)
         depth_o3d = o3d.geometry.Image(depth_cv2)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
@@ -92,7 +89,6 @@ if __name__ == "__main__":
         )
 
         T = result.transformation
-        # o3d.visualization.draw_geometries([model_pcd, frame_pcd.transform(T)])
 
         volume.integrate(
             rgbd,
