@@ -1,0 +1,27 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters
+#--------------------------------------------------------------------------------------------
+RGBCamera:
+  type: "PinHole"
+  width: 640
+  height: 480
+  fx: 517.3
+  fy: 516.5
+  cx: 318.6
+  cy: 255.3
+  bits: 8
+
+DepthCamera:
+  depth_scale: 5000
+  max_range: 3.0
+  bits: 16
+
+TSDF:
+  voxel_size: 0.01
+  sdf_trunc: 0.05
+  space_carving: False
+  out_dir: "results"
+  apply_pose: True
+  preprocess: True
