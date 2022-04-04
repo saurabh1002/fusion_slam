@@ -8,7 +8,6 @@
 #include "freiburg1_desk.h"
 #include "indicators/progress_bar.hpp"
 #include "open3d/Open3D.h"
-#include "yaml-cpp/yaml.h"
 
 argparse::ArgumentParser ArgParse(int argc, char* argv[]) {
     argparse::ArgumentParser argparser("Mapping with known poses pipeline");
@@ -89,29 +88,47 @@ int main(int argc, char* argv[]) {
         progress::option::FontStyles{std::vector<progress::FontStyle>{progress::FontStyle::bold}}
     };
     // clang-format on
+    Eigen::Matrix4d extrinsics;
+    extrinsics.setIdentity();
 
     auto tsdf_volume = o3d::pipelines::integration::ScalableTSDFVolume(
             voxel_size, sdf_trunc,
             o3d::pipelines::integration::TSDFVolumeColorType::RGB8);
 
-    for (std::size_t idx = 0; idx < dataset.size(); idx++) {
+    auto [timestamp, pose, rgbImage, depthImage] = dataset[0];
+    auto rgbdImage = o3d::geometry::RGBDImage::CreateFromColorAndDepth(
+            rgbImage, depthImage, rgbd_cam.depth_scale_, rgbd_cam.depth_max_,
+            false);
+    tsdf_volume.Integrate(*rgbdImage, rgbd_cam.intrinsics_, extrinsics);
+
+    double max_correspondance_distance = 0.05;
+    for (std::size_t idx = 1; idx < dataset.size(); idx++) {
         bar.set_option(
                 progress::option::PostfixText{std::to_string(idx + 1) + "/" +
                                               std::to_string(dataset.size())});
         bar.tick();
-        auto [timestamp, pose, rgbImage, depthImage] = dataset[idx];
-        auto rgbdImage = o3d::geometry::RGBDImage::CreateFromColorAndDepth(
+        auto [timestamp, _, rgbImage, depthImage] = dataset[idx];
+        rgbdImage = o3d::geometry::RGBDImage::CreateFromColorAndDepth(
                 rgbImage, depthImage, rgbd_cam.depth_scale_,
                 rgbd_cam.depth_max_, false);
 
-        auto extrinsics = TF_from_poses(pose);
+        auto model_pcd = tsdf_volume.ExtractPointCloud();
+        auto frame_pcd = o3d::geometry::PointCloud::CreateFromRGBDImage(
+                *rgbdImage, rgbd_cam.intrinsics_);
+
+        auto result = o3d::pipelines::registration::RegistrationICP(
+                *frame_pcd, *model_pcd, max_correspondance_distance, extrinsics,
+                o3d::pipelines::registration::
+                        TransformationEstimationPointToPlane());
+
+        extrinsics = result.transformation_;
         tsdf_volume.Integrate(*rgbdImage, rgbd_cam.intrinsics_,
                               extrinsics.inverse());
     }
 
     auto mesh = tsdf_volume.ExtractTriangleMesh();
     mesh->ComputeVertexNormals();
-    o3d::io::WriteTriangleMeshToPLY("../results/mesh_known_poses_full.ply",
+    o3d::io::WriteTriangleMeshToPLY("../results/mesh_model_to_frame_full.ply",
                                     *mesh, false, false, true, true, true,
                                     true);
     o3d::visualization::DrawGeometries(
