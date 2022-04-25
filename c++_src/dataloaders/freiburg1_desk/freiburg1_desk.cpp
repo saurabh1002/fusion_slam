@@ -91,4 +91,40 @@ freiburg1_desk::operator[](int idx) const {
                              rgb_files_[idx], depth_files_[idx]);
     exit(1);
 }
+
+maskrcnn::maskrcnn(freiburg1_desk data_fr1) : data_fr1_(std::move(data_fr1)) {}
+std::tuple<std::vector<std::string>,
+           std::vector<std::vector<int>>,
+           std::vector<Image>>
+maskrcnn::operator[](int idx) const {
+    const auto& masks_path = fs::path(data_fr1_.rgb_files_[idx]).parent_path() /
+                             fs::path(data_fr1_.rgb_files_[idx]).stem();
+
+    std::string class_label;
+    std::vector<std::string> class_labels;
+    std::ifstream labels_file(masks_path / "class_labels.txt",
+                              std::ios_base::in);
+    while (std::getline(labels_file, class_label)) {
+        class_labels.emplace_back(class_label);
+    }
+
+    double tlx, tly, brx, bry;
+    std::vector<std::vector<int>> bboxes;
+    std::ifstream bboxes_file(masks_path / "bboxes.txt", std::ios_base::in);
+    while (bboxes_file >> tlx >> tly >> brx >> bry) {
+        bboxes.emplace_back(
+                std::vector<int>{static_cast<int>(tlx), static_cast<int>(tly),
+                                 static_cast<int>(brx), static_cast<int>(bry)});
+    }
+
+    std::vector<Image> masks;
+    for (size_t i = 0; i < class_labels.size(); i++) {
+        const auto& image =
+                masks_path.string() + "/masks/" + std::to_string(i) + ".png";
+        Image mask;
+        o3d::io::ReadImage(image, mask);
+        masks.emplace_back(mask);
+    }
+    return std::make_tuple(class_labels, bboxes, masks);
+}
 }  // namespace datasets
