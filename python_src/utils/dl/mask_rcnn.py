@@ -24,7 +24,7 @@ from torchvision import transforms as T
 import sys
 
 sys.path.append("..")
-from utils.plots.opencv import random_colour_masks, show_object_masks
+from plots.opencv import random_colour_masks, show_object_masks
 
 
 model = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=True)

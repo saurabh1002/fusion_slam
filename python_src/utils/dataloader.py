@@ -14,8 +14,9 @@ import cv2
 
 
 class DatasetPCL:
-    def __init__(self, datadir):
+    def __init__(self, datadir, tensor=False):
         with open(datadir + "associations_pcl_gt.txt", "r") as f:
+            self.tensor = tensor
             self.timestamps_pcl = []
             self.scans_path = []
             self.origins = []
@@ -33,10 +34,14 @@ class DatasetPCL:
         return len(self.scans_path)
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
+        device = o3d.core.Device("CUDA:0")
         timestamp = self.timestamps_pcl[idx]
-        points = o3d.io.read_point_cloud(self.scans_path[idx])
         origin = np.array(self.origins[idx])
         rot = np.array(self.rot_quat[idx])
+        if not self.tensor:
+            points = o3d.io.read_point_cloud(self.scans_path[idx])
+        else:
+            points = o3d.t.io.read_point_cloud(self.scans_path[idx]).to(device)
         return timestamp, points, origin, rot
 
 
