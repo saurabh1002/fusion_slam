@@ -102,6 +102,7 @@ def filter_object_masks(
         pass
     np.savetxt(masks_path + "/class_labels.txt", labels, fmt="%s")
     np.savetxt(masks_path + "/bboxes.txt", boxes)
+    np.savetxt(masks_path + "/scores.txt", scores)
     for i, mask in enumerate(masks):
         cv2.imwrite(masks_path + '/masks/' + str(i) + '.png', mask * depth_image)
 
@@ -120,7 +121,7 @@ def filter_object_masks(
 def main():
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.9
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
     class_names = MetadataCatalog.get(cfg.DATASETS.TRAIN[0]).get("thing_classes", None)
 
