@@ -58,6 +58,7 @@ class maskrcnn {
 public:
     explicit maskrcnn(freiburg1_desk data_fr1);
     [[nodiscard]] std::tuple<std::vector<std::string>,
+                             std::vector<float>,
                              std::vector<std::vector<int>>,
                              std::vector<o3d::geometry::Image>>
     operator[](int idx) const;

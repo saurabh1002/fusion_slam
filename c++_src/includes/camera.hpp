@@ -10,6 +10,6 @@ public:
 public:
     open3d::camera::PinholeCameraIntrinsic intrinsics_;
     open3d::core::Tensor intrinsics_t_;
-    int depth_scale_;
+    double depth_scale_;
     double depth_max_;
 };

@@ -9,40 +9,39 @@
 
 from typing import Tuple
 import numpy as np
-import open3d as o3d
+# import open3d as o3d
 import cv2
 
+# class DatasetPCL:
+#     def __init__(self, datadir, tensor=False):
+#         with open(datadir + "associations_pcl_gt.txt", "r") as f:
+#             self.tensor = tensor
+#             self.timestamps_pcl = []
+#             self.scans_path = []
+#             self.origins = []
+#             self.rot_quat = []
+#             for line in f.readlines():
+#                 t_pcl, pcl_path, _, tx, ty, tz, qx, qy, qz, qw = line.rstrip(
+#                     "\n"
+#                 ).split(" ")
+#                 self.timestamps_pcl.append(float(t_pcl))
+#                 self.origins.append([float(tx), float(ty), float(tz)])
+#                 self.rot_quat.append([float(qw), float(qx), float(qy), float(qz)])
+#                 self.scans_path.append(datadir + pcl_path)
 
-class DatasetPCL:
-    def __init__(self, datadir, tensor=False):
-        with open(datadir + "associations_pcl_gt.txt", "r") as f:
-            self.tensor = tensor
-            self.timestamps_pcl = []
-            self.scans_path = []
-            self.origins = []
-            self.rot_quat = []
-            for line in f.readlines():
-                t_pcl, pcl_path, _, tx, ty, tz, qx, qy, qz, qw = line.rstrip(
-                    "\n"
-                ).split(" ")
-                self.timestamps_pcl.append(float(t_pcl))
-                self.origins.append([float(tx), float(ty), float(tz)])
-                self.rot_quat.append([float(qw), float(qx), float(qy), float(qz)])
-                self.scans_path.append(datadir + pcl_path)
+#     def __len__(self) -> int:
+#         return len(self.scans_path)
 
-    def __len__(self) -> int:
-        return len(self.scans_path)
-
-    def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
-        device = o3d.core.Device("CUDA:0")
-        timestamp = self.timestamps_pcl[idx]
-        origin = np.array(self.origins[idx])
-        rot = np.array(self.rot_quat[idx])
-        if not self.tensor:
-            points = o3d.io.read_point_cloud(self.scans_path[idx])
-        else:
-            points = o3d.t.io.read_point_cloud(self.scans_path[idx]).to(device)
-        return timestamp, points, origin, rot
+#     def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
+#         device = o3d.core.Device("CUDA:0")
+#         timestamp = self.timestamps_pcl[idx]
+#         origin = np.array(self.origins[idx])
+#         rot = np.array(self.rot_quat[idx])
+#         if not self.tensor:
+#             points = o3d.io.read_point_cloud(self.scans_path[idx])
+#         else:
+#             points = o3d.t.io.read_point_cloud(self.scans_path[idx]).to(device)
+#         return timestamp, points, origin, rot
 
 
 class DatasetRGBD:

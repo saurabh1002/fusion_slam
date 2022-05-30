@@ -72,7 +72,8 @@ int main(int argc, char* argv[]) {
 
     auto voxel_size = config["TSDF"]["voxel_size"].as<double>();
     auto sdf_trunc = config["TSDF"]["sdf_trunc"].as<double>();
-    // auto space_carving = config["TSDF"]["space_carving"].as<bool>();
+    auto space_carving = config["TSDF"]["space_carving"].as<bool>();
+    auto score_threshold = config["MaskRCNN"]["score_threshold"].as<float>();
 
     auto dataset =
             datasets::freiburg1_desk(freiburg_data_path, config, n_scans);
@@ -101,26 +102,31 @@ int main(int argc, char* argv[]) {
         bar.tick();
 
         auto [timestamp, pose, rgbImage, depthImage] = dataset[idx];
-        auto [class_labels, bboxes, masks] = maskrcnn_data[idx];
+        auto [class_labels, scores, bboxes, masks] = maskrcnn_data[idx];
         auto extrinsics = TF_from_poses(pose);
 
         for (size_t i = 0; i < class_labels.size(); i++) {
             const auto& label = class_labels[i];
-            if (object_tsdf_dict.find(label) == object_tsdf_dict.end()) {
-                auto tsdf_volume =
-                        o3d::pipelines::integration::ScalableTSDFVolume(
-                                voxel_size, sdf_trunc,
-                                o3d::pipelines::integration::
-                                        TSDFVolumeColorType::RGB8);
-                object_tsdf_dict.emplace(std::make_pair(label, tsdf_volume));
+            const auto score = scores[i];
+            if (score >= score_threshold) {
+                if (object_tsdf_dict.find(label) == object_tsdf_dict.end()) {
+                    auto tsdf_volume =
+                            o3d::pipelines::integration::ScalableTSDFVolume(
+                                    voxel_size, sdf_trunc,
+                                    o3d::pipelines::integration::
+                                            TSDFVolumeColorType::RGB8);
+                    object_tsdf_dict.emplace(
+                            std::make_pair(label, tsdf_volume));
+                }
+
+                auto rgbdImage =
+                        o3d::geometry::RGBDImage::CreateFromColorAndDepth(
+                                rgbImage, masks[i], rgbd_cam.depth_scale_,
+                                rgbd_cam.depth_max_, false);
+
+                object_tsdf_dict.at(label).Integrate(
+                        *rgbdImage, rgbd_cam.intrinsics_, extrinsics.inverse());
             }
-
-            auto rgbdImage = o3d::geometry::RGBDImage::CreateFromColorAndDepth(
-                    rgbImage, masks[i], rgbd_cam.depth_scale_,
-                    rgbd_cam.depth_max_, false);
-
-            object_tsdf_dict.at(label).Integrate(
-                    *rgbdImage, rgbd_cam.intrinsics_, extrinsics.inverse());
         }
     }
 

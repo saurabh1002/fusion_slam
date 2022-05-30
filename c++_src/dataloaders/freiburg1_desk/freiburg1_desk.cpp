@@ -92,16 +92,6 @@ freiburg1_desk::operator[](int idx) const {
     exit(1);
 }
 
-freiburg1_desk_t::freiburg1_desk_t(const std::string& data_root_dir,
-                                   const YAML::Node& cfg,
-                                   int n_scans)
-    : cfg_(cfg) {
-    auto freiburg_root_dir_ = fs::absolute(fs::path(data_root_dir));
-
-    std::tie(time_, poses_, rgb_files_, depth_files_) =
-            readData(freiburg_root_dir_, n_scans);
-}
-
 using Image_t = o3d::t::geometry::Image;
 std::tuple<double, Eigen::Vector<double, 7>, Image_t, Image_t>
 freiburg1_desk_t::operator[](int idx) const {
@@ -119,8 +109,19 @@ freiburg1_desk_t::operator[](int idx) const {
     exit(1);
 }
 
+freiburg1_desk_t::freiburg1_desk_t(const std::string& data_root_dir,
+                                   const YAML::Node& cfg,
+                                   int n_scans)
+    : cfg_(cfg) {
+    auto freiburg_root_dir_ = fs::absolute(fs::path(data_root_dir));
+
+    std::tie(time_, poses_, rgb_files_, depth_files_) =
+            readData(freiburg_root_dir_, n_scans);
+}
+
 maskrcnn::maskrcnn(freiburg1_desk data_fr1) : data_fr1_(std::move(data_fr1)) {}
 std::tuple<std::vector<std::string>,
+           std::vector<float>,
            std::vector<std::vector<int>>,
            std::vector<Image>>
 maskrcnn::operator[](int idx) const {
@@ -133,6 +134,13 @@ maskrcnn::operator[](int idx) const {
                               std::ios_base::in);
     while (std::getline(labels_file, class_label)) {
         class_labels.emplace_back(class_label);
+    }
+
+    float score;
+    std::vector<float> class_scores;
+    std::ifstream scores_file(masks_path / "scores.txt", std::ios_base::in);
+    while (scores_file >> score) {
+        class_scores.emplace_back(score);
     }
 
     double tlx, tly, brx, bry;
@@ -152,6 +160,6 @@ maskrcnn::operator[](int idx) const {
         o3d::io::ReadImage(image, mask);
         masks.emplace_back(mask);
     }
-    return std::make_tuple(class_labels, bboxes, masks);
+    return std::make_tuple(class_labels, class_scores, bboxes, masks);
 }
 }  // namespace datasets
