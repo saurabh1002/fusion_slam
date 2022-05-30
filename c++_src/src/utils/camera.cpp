@@ -11,6 +11,7 @@ RGBDCamera::RGBDCamera(const YAML::Node& config) {
 
     intrinsics_ = open3d::camera::PinholeCameraIntrinsic(width, height, fx, fy,
                                                          cx, cy);
+    intrinsics_t_ = open3d::core::eigen_converter::EigenMatrixToTensor(intrinsics_.intrinsic_matrix_);
 
     depth_scale_ = config["DepthCamera"]["depth_scale"].as<int>();
     depth_max_ = config["DepthCamera"]["max_range"].as<double>();

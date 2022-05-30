@@ -32,6 +32,28 @@ public:
     std::vector<std::string> depth_files_;
 };
 
+class freiburg1_desk_t {
+public:
+    using Image_t = open3d::t::geometry::Image;
+
+    explicit freiburg1_desk_t(const std::string& data_root_dir,
+                              const YAML::Node& cfg,
+                              int n_scans = -1);
+
+    [[nodiscard]] std::tuple<double, Eigen::Vector<double, 7>, Image_t, Image_t>
+    operator[](int idx) const;
+    [[nodiscard]] std::size_t size() const { return time_.size(); }
+
+private:
+    YAML::Node cfg_;
+
+public:
+    std::vector<double> time_;
+    std::vector<Eigen::Vector<double, 7>> poses_;
+    std::vector<std::string> rgb_files_;
+    std::vector<std::string> depth_files_;
+};
+
 class maskrcnn {
 public:
     explicit maskrcnn(freiburg1_desk data_fr1);

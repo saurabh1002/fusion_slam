@@ -92,6 +92,33 @@ freiburg1_desk::operator[](int idx) const {
     exit(1);
 }
 
+freiburg1_desk_t::freiburg1_desk_t(const std::string& data_root_dir,
+                                   const YAML::Node& cfg,
+                                   int n_scans)
+    : cfg_(cfg) {
+    auto freiburg_root_dir_ = fs::absolute(fs::path(data_root_dir));
+
+    std::tie(time_, poses_, rgb_files_, depth_files_) =
+            readData(freiburg_root_dir_, n_scans);
+}
+
+using Image_t = o3d::t::geometry::Image;
+std::tuple<double, Eigen::Vector<double, 7>, Image_t, Image_t>
+freiburg1_desk_t::operator[](int idx) const {
+    double timestamp = time_[idx];
+    Eigen::Vector<double, 7> pose = poses_[idx];
+    Image_t rgb_image_8bit;
+    Image_t depth_image_16bit;
+    if (open3d::t::io::ReadImage(rgb_files_[idx], rgb_image_8bit) &&
+        open3d::t::io::ReadImage(depth_files_[idx], depth_image_16bit)) {
+        return std::make_tuple(timestamp, pose, rgb_image_8bit,
+                               depth_image_16bit);
+    }
+    o3d::utility::LogWarning("Failed to read following files:\n{}\n{}",
+                             rgb_files_[idx], depth_files_[idx]);
+    exit(1);
+}
+
 maskrcnn::maskrcnn(freiburg1_desk data_fr1) : data_fr1_(std::move(data_fr1)) {}
 std::tuple<std::vector<std::string>,
            std::vector<std::vector<int>>,
