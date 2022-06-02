@@ -99,14 +99,7 @@ freiburg1_desk_t::operator[](int idx) const {
     Eigen::Vector<double, 7> pose = poses_[idx];
     Image_t rgb_image_8bit;
     Image_t depth_image_16bit;
-    if (open3d::t::io::ReadImage(rgb_files_[idx], rgb_image_8bit) &&
-        open3d::t::io::ReadImage(depth_files_[idx], depth_image_16bit)) {
-        return std::make_tuple(timestamp, pose, rgb_image_8bit,
-                               depth_image_16bit);
-    }
-    o3d::utility::LogWarning("Failed to read following files:\n{}\n{}",
-                             rgb_files_[idx], depth_files_[idx]);
-    exit(1);
+    return std::make_tuple(timestamp, pose, rgb_image_8bit, depth_image_16bit);
 }
 
 freiburg1_desk_t::freiburg1_desk_t(const std::string& data_root_dir,

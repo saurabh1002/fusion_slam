@@ -9,8 +9,7 @@ RGBDCamera::RGBDCamera(const YAML::Node& config) {
     auto cx = config["RGBCamera"]["cx"].as<double>();
     auto cy = config["RGBCamera"]["cy"].as<double>();
 
-    intrinsics_ = open3d::camera::PinholeCameraIntrinsic(width, height, fx, fy,
-                                                         cx, cy);
+    intrinsics_ = open3d::camera::PinholeCameraIntrinsic(width, height, fx, fy, cx, cy);
     intrinsics_t_ = open3d::core::eigen_converter::EigenMatrixToTensor(
             intrinsics_.intrinsic_matrix_);
 

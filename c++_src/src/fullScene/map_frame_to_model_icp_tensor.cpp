@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
     auto device = o3d::core::Device("CPU:0");
 
     auto dataset =
-            datasets::freiburg1_desk_t(freiburg_data_path, config, n_scans);
+            datasets::freiburg1_desk(freiburg_data_path, config, n_scans);
 
     // clang-format off
     progress::ProgressBar bar{
@@ -90,70 +90,103 @@ int main(int argc, char* argv[]) {
         progress::option::FontStyles{std::vector<progress::FontStyle>{progress::FontStyle::bold}}
     };
     // clang-format on
-    const o3d::core::Tensor& init_source_to_target =
+    const o3d::core::Tensor& I =
             o3d::core::Tensor::Eye(4, o3d::core::Float64, device);
 
     auto voxel_block_grid = o3d::t::geometry::VoxelBlockGrid(
             {"tsdf", "weight", "color"},
-            {o3d::core::Float32, o3d::core::UInt16, o3d::core::UInt16},
+            {o3d::core::Dtype::Float32, o3d::core::Dtype::Float32,
+             o3d::core::Dtype::Float32},
             {{1}, {1}, {3}}, voxel_size, 16, 10000, device);
 
-    auto extrinsic =
+    auto extrinsics_t =
             o3d::core::Tensor::Eye(4, o3d::core::Dtype::Float64, device);
 
-    auto [timestamp, pose, rgbImage, depthImage] = dataset[0];
-    //     auto rgbdImage = o3d::t::geometry::RGBDImage(rgbImage, depthImage);
+    auto [timestamp, pose, rgbImage, depthImage] = dataset[1];
+    auto rgb_t = o3d::t::geometry::Image::FromLegacy(rgbImage, device);
+    auto depth_t = o3d::t::geometry::Image::FromLegacy(depthImage, device);
 
-    auto block_coords = voxel_block_grid.GetUniqueBlockCoordinates(
-            depthImage, rgbd_cam.intrinsics_t_, extrinsic,
+    o3d::core::Tensor block_coords = voxel_block_grid.GetUniqueBlockCoordinates(
+            depth_t, rgbd_cam.intrinsics_t_, extrinsics_t,
             rgbd_cam.depth_scale_, rgbd_cam.depth_max_);
 
-    voxel_block_grid.Integrate(block_coords, depthImage, rgbd_cam.intrinsics_t_,
-                               extrinsic, rgbd_cam.depth_scale_,
-                               rgbd_cam.depth_max_);
+    voxel_block_grid.Integrate(block_coords, depth_t, rgb_t,
+                               rgbd_cam.intrinsics_t_, extrinsics_t,
+                               rgbd_cam.depth_scale_, rgbd_cam.depth_max_);
 
-    double max_correspondance_distance = 0.05;
+    double max_correspondance_distance = 0.1;
     for (std::size_t idx = 1; idx < dataset.size(); idx++) {
         bar.set_option(
                 progress::option::PostfixText{std::to_string(idx + 1) + "/" +
                                               std::to_string(dataset.size())});
         bar.tick();
+        
         auto [timestamp, _, rgbImage, depthImage] = dataset[idx];
-        // rgbdImage = o3d::t::geometry::RGBDImage(rgbImage, depthImage);
-        std::cout << "1" << std::endl;
+        rgb_t = o3d::t::geometry::Image::FromLegacy(rgbImage, device);
+        depth_t = o3d::t::geometry::Image::FromLegacy(depthImage, device);
+
         block_coords = voxel_block_grid.GetUniqueBlockCoordinates(
-                depthImage, rgbd_cam.intrinsics_t_, extrinsic,
-                rgbd_cam.depth_scale_, rgbd_cam.depth_max_);
-        std::cout << "2" << std::endl;
-        auto model_pcd = voxel_block_grid.RayCast(
-                block_coords, rgbd_cam.intrinsics_t_, extrinsic,
-                rgbd_cam.intrinsics_.width_, rgbd_cam.intrinsics_.height_);
-        std::cout << "3" << std::endl;
+            depth_t, rgbd_cam.intrinsics_t_, extrinsics_t,
+            rgbd_cam.depth_scale_, rgbd_cam.depth_max_);
+
+        auto raycast_res = voxel_block_grid.RayCast(
+                    block_coords, rgbd_cam.intrinsics_t_, extrinsics_t,
+                    rgbd_cam.intrinsics_.width_, rgbd_cam.intrinsics_.height_, {"depth", "color"},
+                    rgbd_cam.depth_scale_, 0.1, rgbd_cam.depth_max_, std::min(idx * 1.0f, 3.0f));
+
+        o3d::t::geometry::Image depth_raycast(raycast_res["depth"]);
+        auto model_pcd = o3d::t::geometry::PointCloud::CreateFromDepthImage(
+                depth_raycast, rgbd_cam.intrinsics_t_, I,
+                               rgbd_cam.depth_scale_, rgbd_cam.depth_max_ );
+        // model_pcd.EstimateNormals();
+
         auto frame_pcd = o3d::t::geometry::PointCloud::CreateFromDepthImage(
-                depthImage, rgbd_cam.intrinsics_t_);
-        std::cout << "4" << std::endl;
+                depth_t, rgbd_cam.intrinsics_t_, I,
+                               rgbd_cam.depth_scale_, rgbd_cam.depth_max_);
+
         auto result = o3d::t::pipelines::registration::ICP(
                 frame_pcd, model_pcd, max_correspondance_distance,
-                init_source_to_target,
-                o3d::t::pipelines::registration::
-                        TransformationEstimationPointToPlane());
-        std::cout << "5" << std::endl;
-        extrinsic = extrinsic.Matmul(result.transformation_);
-        voxel_block_grid.Integrate(block_coords, depthImage,
-                                   rgbd_cam.intrinsics_t_, extrinsic,
-                                   rgbd_cam.depth_scale_, rgbd_cam.depth_max_);
-        std::cout << "6" << std::endl;
-    }
-    //     auto mesh = voxel_block_grid.ExtractTriangleMesh();
-    //     mesh.GetVertexNormals();
+                I, o3d::t::pipelines::registration::TransformationEstimationPointToPoint(),
+                o3d::t::pipelines::registration::ICPConvergenceCriteria(),
+                2 * voxel_size);
 
-    //     auto mesh_legacy = mesh.ToLegacy();
-    //     o3d::io::WriteTriangleMeshToPLY("../results/mesh_model_to_frame_full.ply",
-    //                                     mesh_legacy, false, false, true,
-    //                                     true, true, true);
-    //     o3d::visualization::DrawGeometries(
-    //             std::vector<std::shared_ptr<const o3d::geometry::Geometry>>{
-    //                     std::make_shared<const o3d::geometry::Geometry>(
-    //                             mesh_legacy)});
+        // Works fine
+        extrinsics_t = (result.transformation_.Inverse().Contiguous()).Matmul(extrinsics_t);
+        // extrinsics_t = extrinsics_t.Matmul(result.transformation_.Inverse().Contiguous());
+        voxel_block_grid.Integrate(block_coords, depth_t, rgb_t,
+                               rgbd_cam.intrinsics_t_, extrinsics_t,
+                               rgbd_cam.depth_scale_, rgbd_cam.depth_max_);
+        
+        if (idx % 25 == 0){
+            o3d::t::geometry::Image color_raycast(raycast_res["color"]);
+            o3d::visualization::DrawGeometries(
+                    {std::make_shared<o3d::geometry::Image>(
+                            color_raycast.ToLegacy())});
+
+            o3d::visualization::DrawGeometries({std::make_shared<const o3d::geometry::Image>(
+                                depth_raycast.ColorizeDepth(rgbd_cam.depth_scale_, 0.1,
+                                                        rgbd_cam.depth_max_).ToLegacy())});
+            auto mesh = voxel_block_grid.ExtractTriangleMesh();
+            mesh.GetVertexNormals();
+
+            auto mesh_legacy = mesh.ToLegacy();
+
+            o3d::visualization::DrawGeometries({
+                            std::make_shared<const o3d::geometry::TriangleMesh>(
+                                    mesh_legacy)});
+        }
+    }
+
+    auto mesh = voxel_block_grid.ExtractTriangleMesh();
+    mesh.GetVertexNormals();
+
+    auto mesh_legacy = mesh.ToLegacy();
+
+    o3d::visualization::DrawGeometries({std::make_shared<const o3d::geometry::TriangleMesh>(
+                            mesh_legacy)});
+
+    o3d::io::WriteTriangleMeshToPLY("../results/mesh_model_to_frame_full.ply",
+                                    mesh_legacy, false, false, true, true, true,
+                                    true);
     return 0;
 }
