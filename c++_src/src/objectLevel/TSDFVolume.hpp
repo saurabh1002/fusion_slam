@@ -4,32 +4,51 @@
 
 namespace o3d = open3d;
 
-auto gpu = o3d::core::Device("CUDA:0");
-auto cpu = o3d::core::Device("CPU:0");
+using Model = o3d::t::pipelines::slam::Model;
+using Frame = o3d::t::pipelines::slam::Frame;
+using Tensor = o3d::core::Tensor;
+using Device = o3d::core::Device;
 
-class TSDFVolume {
+class TSDFVolumes {
 public:
-    TSDFVolume(std::string class_name,
-               float class_score,
+    TSDFVolumes(float class_score,
                float voxel_size,
                int block_resolution,
                int est_block_count,
-               o3d::core::Tensor T_frame_to_model,
-               o3d::core::device device,
-               o3d::t::pipelines::slam::Frame sample_frame);
-    ~TSDFVolume();
+               Tensor T_frame_to_model,
+               Device device,
+               Frame sample_frame,
+               double depth_scale,
+               double depth_max);
+    ~TSDFVolumes();
 
-    void incrementExistenceCount() { existence_count_++; }
-    void incrementNonExistenceCount() { nonexistence_count_++; }
+    void incrementExistenceCount(int idx) { existence_counts_[idx]++; }
+    void incrementNonExistenceCount(int idx) { nonexistence_counts_[idx]++; }
+
+    void addNewInstance(float class_score,
+                        float voxel_size,
+                        int block_resolution,
+                        int est_block_count,
+                        Tensor T_frame_to_model,
+                        Frame sample_frame);
+
+    void integrateInstance(int frame_id,
+                           int inst_id,
+                           Frame input_frame,
+                           Tensor T_frame_to_Model);
     void updateClassProbability(float detection_score);
 
-private:
-    std::string class_name_;
-    float class_probability_;
-    int existence_count_ = 1;
-    int nonexistence_count_ = 1;
+    std::vector<int> computeMaskOverlap(const o3d::t::geometry::Image& input_mask) const;
 
-    o3d::t::pipelines::slam::Model model_;
-    o3d::t::pipelines::slam::Frame input_frame_;
-    o3d::t::pipelines::slam::Frame raycast_frame_;
+
+private:
+    Device device_;
+    std::vector<float> class_probabilities_;
+    std::vector<int> existence_counts_;
+    std::vector<int> nonexistence_counts_;
+    std::vector<Model> models_;
+    std::vector<Frame> input_frames_;
+    std::vector<Frame> raycast_frames_;
+    double depth_scale_;
+    double depth_max_;
 }

@@ -101,8 +101,8 @@ int main(int argc, char* argv[]) {
                                               std::to_string(dataset.size())});
         bar.tick();
 
-        auto [timestamp, pose, rgbImage, depthImage] = dataset[idx];
-        auto [class_labels, scores, bboxes, masks] = maskrcnn_data[idx];
+        auto [timestamp, pose, rgbImage, depthImage] = dataset.At(idx);
+        auto [class_labels, scores, bboxes, masks] = maskrcnn_data.At(idx);
         auto extrinsics = TF_from_poses(pose);
 
         for (size_t i = 0; i < class_labels.size(); i++) {
