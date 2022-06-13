@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
             voxel_size, sdf_trunc,
             o3d::pipelines::integration::TSDFVolumeColorType::RGB8);
 
-    auto [timestamp, pose, rgbImage, depthImage] = dataset[0];
+    auto [timestamp, pose, rgbImage, depthImage] = dataset.At(0);
     auto rgbdImage = o3d::geometry::RGBDImage::CreateFromColorAndDepth(
             rgbImage, depthImage, rgbd_cam.depth_scale_, rgbd_cam.depth_max_,
             false);
@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
                 progress::option::PostfixText{std::to_string(idx + 1) + "/" +
                                               std::to_string(dataset.size())});
         bar.tick();
-        auto [timestamp, _, rgbImage, depthImage] = dataset[idx];
+        auto [timestamp, _, rgbImage, depthImage] = dataset.At(idx);
         rgbdImage = o3d::geometry::RGBDImage::CreateFromColorAndDepth(
                 rgbImage, depthImage, rgbd_cam.depth_scale_,
                 rgbd_cam.depth_max_, false);

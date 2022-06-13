@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
                 progress::option::PostfixText{std::to_string(idx + 1) + "/" +
                                               std::to_string(dataset.size())});
         bar.tick();
-        auto [timestamp, pose, rgbImage, depthImage] = dataset[idx];
+        auto [timestamp, pose, rgbImage, depthImage] = dataset.At(idx);
         auto rgbdImage = o3d::geometry::RGBDImage::CreateFromColorAndDepth(
                 rgbImage, depthImage, rgbd_cam.depth_scale_,
                 rgbd_cam.depth_max_, false);

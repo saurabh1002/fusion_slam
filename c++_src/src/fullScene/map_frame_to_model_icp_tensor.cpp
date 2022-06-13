@@ -52,21 +52,10 @@ argparse::ArgumentParser ArgParse(int argc, char* argv[]) {
     return argparser;
 }
 
-Eigen::Matrix4d TF_from_poses(const Eigen::Vector<double, 7>& pose) {
-    Eigen::Matrix4d extrinsics;
-    extrinsics.setIdentity();
-
-    auto R = open3d::geometry::PointCloud::GetRotationMatrixFromQuaternion(
-            Eigen::Vector4d{pose[6], pose[3], pose[4], pose[5]});
-    extrinsics.block<3, 3>(0, 0) = R;
-    extrinsics.block<3, 1>(0, 3) = Eigen::Vector3d{pose[0], pose[1], pose[2]};
-
-    return extrinsics;
-}
-
 int main(int argc, char* argv[]) {
     namespace progress = indicators;
     namespace o3d = open3d;
+    using Tensor = o3d::core::Tensor;
 
     auto argparser = ArgParse(argc, argv);
 
@@ -102,12 +91,10 @@ int main(int argc, char* argv[]) {
         progress::option::FontStyles{std::vector<progress::FontStyle>{progress::FontStyle::bold}}
     };
     // clang-format on
-    auto [_, pose, rgbImage, depthImage] = dataset[0];
-    auto rgb_t = o3d::t::geometry::Image::FromLegacy(rgbImage, gpu);
-    auto depth_t = o3d::t::geometry::Image::FromLegacy(depthImage, gpu);
+    auto [_, pose, rgb_t, depth_t] = dataset.At_t(0);
 
-    o3d::core::Tensor T_frame_to_model =
-            o3d::core::Tensor::Eye(4, o3d::core::Float64, cpu);
+    Tensor T_frame_to_model =
+            Tensor::Eye(4, o3d::core::Float64, cpu);
 
     auto model = o3d::t::pipelines::slam::Model(voxel_size, block_resolution,
                                                 est_block_count,
@@ -125,9 +112,7 @@ int main(int argc, char* argv[]) {
                                               std::to_string(dataset.size())});
         bar.tick();
 
-        auto [timestamp, _, rgbImage, depthImage] = dataset[idx];
-        rgb_t = o3d::t::geometry::Image::FromLegacy(rgbImage, gpu);
-        depth_t = o3d::t::geometry::Image::FromLegacy(depthImage, gpu);
+        auto [timestamp, _, rgb_t, depth_t] = dataset.At_t(idx);
         auto depth_t_filtered = depth_t.FilterBilateral();
 
         input_frame.SetDataFromImage("color", rgb_t);
