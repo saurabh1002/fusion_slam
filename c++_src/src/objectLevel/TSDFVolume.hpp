@@ -9,6 +9,15 @@ using Frame = o3d::t::pipelines::slam::Frame;
 using Tensor = o3d::core::Tensor;
 using Device = o3d::core::Device;
 
+struct FusionModel{
+    float class_probability;
+    int existence_count_;
+    int nonexistence_count_;
+    Model model_;
+    Frame input_frame_;
+    Frame raycast_frame_;
+};
+
 class TSDFVolumes {
 public:
     TSDFVolumes(float class_score,
@@ -22,8 +31,8 @@ public:
                double depth_max);
     ~TSDFVolumes();
 
-    void incrementExistenceCount(int idx) { existence_counts_[idx]++; }
-    void incrementNonExistenceCount(int idx) { nonexistence_counts_[idx]++; }
+    void incrementExistenceCount(int idx) { models_[idx].existence_count_++; }
+    void incrementNonExistenceCount(int idx) { models_[idx].nonexistence_count_++; }
 
     void addNewInstance(float class_score,
                         float voxel_size,
@@ -38,17 +47,12 @@ public:
                            Tensor T_frame_to_Model);
     void updateClassProbability(float detection_score);
 
-    std::vector<int> computeMaskOverlap(const o3d::t::geometry::Image& input_mask) const;
+    std::vector<float> compute2DIoU(const o3d::t::geometry::Image& input_mask) const;
 
-
+    void updateRaycastFrames(int frame_id, Tensor T_frame_to_model);
 private:
     Device device_;
-    std::vector<float> class_probabilities_;
-    std::vector<int> existence_counts_;
-    std::vector<int> nonexistence_counts_;
-    std::vector<Model> models_;
-    std::vector<Frame> input_frames_;
-    std::vector<Frame> raycast_frames_;
+    std::vector<FusionModel> models_;
     double depth_scale_;
     double depth_max_;
-}
+};
