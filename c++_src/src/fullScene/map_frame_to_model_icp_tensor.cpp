@@ -19,7 +19,6 @@ void visualizeModel(o3d::t::pipelines::slam::Model model) {
             {std::make_shared<const o3d::geometry::TriangleMesh>(mesh_legacy)});
 }
 
-
 argparse::ArgumentParser ArgParse(int argc, char* argv[]) {
     argparse::ArgumentParser argparser("Mapping with known poses pipeline");
     argparser.add_argument("data_root_dir")
@@ -93,8 +92,7 @@ int main(int argc, char* argv[]) {
     // clang-format on
     auto [_, pose, rgb_t, depth_t] = dataset.At_t(0);
 
-    Tensor T_frame_to_model =
-            Tensor::Eye(4, o3d::core::Float64, cpu);
+    Tensor T_frame_to_model = Tensor::Eye(4, o3d::core::Float64, cpu);
 
     auto model = o3d::t::pipelines::slam::Model(voxel_size, block_resolution,
                                                 est_block_count,

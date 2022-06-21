@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <argparse/argparse.hpp>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
 
 #include "TSDFVolume.hpp"
@@ -66,6 +68,8 @@ int main(int argc, char* argv[]) {
     YAML::Node config = YAML::Load(config_file);
 
     RGBDCamera rgbd_cam = RGBDCamera(config);
+    auto depth_scale = rgbd_cam.depth_scale_;
+    auto depth_max = rgbd_cam.depth_max_;
 
     auto voxel_size = config["TSDF"]["voxel_size"].as<double>();
     auto block_resolution = config["TSDF"]["block_resolution"].as<int>();
@@ -98,68 +102,110 @@ int main(int argc, char* argv[]) {
     o3d::core::Tensor T_frame_to_model =
             o3d::core::Tensor::Eye(4, o3d::core::Float64, cpu);
 
+    auto global_model = o3d::t::pipelines::slam::Model(
+            voxel_size, block_resolution, est_block_count, T_frame_to_model,
+            gpu);
     std::map<std::string, TSDFVolumes> object_tsdf_dict{};
 
-    auto sample_frame = o3d::t::pipelines::slam::Frame(
+    auto raycast_mask = o3d::t::pipelines::slam::Frame(
             depth_t.GetRows(), depth_t.GetCols(), rgbd_cam.intrinsics_t_, gpu);
-   
+    auto raycast_frame = o3d::t::pipelines::slam::Frame(
+            depth_t.GetRows(), depth_t.GetCols(), rgbd_cam.intrinsics_t_, gpu);
+    auto input_frame = o3d::t::pipelines::slam::Frame(
+            depth_t.GetRows(), depth_t.GetCols(), rgbd_cam.intrinsics_t_, gpu);
+
     auto start_idx = 200;
-    for (std::size_t idx = start_idx; idx < dataset.size(); idx++) {
+    for (std::size_t idx = 0; idx < dataset.size() - start_idx; idx++) {
         bar.set_option(progress::option::PostfixText{
-                std::to_string(idx - start_idx + 1) + "/" +
+                std::to_string(idx) + "/" +
                 std::to_string(dataset.size() - start_idx)});
         bar.tick();
 
-        auto [timestamp, _, rgb_t, depth_t] = dataset.At_t(idx);
-        auto [class_labels, scores, bboxes, masks] = maskrcnn_data.At_t(idx);
+        auto [timestamp, _, rgb_t, depth_t] = dataset.At_t(idx + start_idx);
+        auto [class_labels, scores, bboxes, masks] =
+                maskrcnn_data.At_t(idx + start_idx);
 
         auto depth_t_filtered = depth_t.FilterBilateral();
 
         input_frame.SetDataFromImage("color", rgb_t);
         input_frame.SetDataFromImage("depth", depth_t);
 
+        if (idx > 0) {
+            auto result = global_model.TrackFrameToModel(
+                    input_frame, raycast_frame, rgbd_cam.depth_scale_,
+                    rgbd_cam.depth_max_, 0.5);
+            T_frame_to_model = T_frame_to_model.Matmul(result.transformation_);
+        }
+
+        global_model.UpdateFramePose(idx, T_frame_to_model);
+        input_frame.SetDataFromImage("depth", depth_t_filtered);
+        global_model.Integrate(input_frame, depth_scale, depth_max);
+        global_model.SynthesizeModelFrame(raycast_frame, depth_scale, 0.1,
+                                          depth_max);
+
+        if (!object_tsdf_dict.empty()) {
+            for (auto& [key, _] : object_tsdf_dict) {
+                object_tsdf_dict.at(key).updateRaycastFrames(idx, T_frame_to_model);
+            }
+        }
+
         for (size_t i = 0; i < class_labels.size(); i++) {
             const auto& label = class_labels[i];
             const auto score = scores[i];
-            if (score > score_threshold){
-                if(object_tsdf_dict.find(label) == object_tsdf_dict.end()){
-                    auto tsdf_volume = TSDFVolumes::TSDFVolumes(score, voxel_size, block_resolution, est_block_count, T_frame_to_model, device, sample_frame, depth_scale, depth_max);
-                    object_tsdf_dict.emplace_back(std::make_pair(label, tsdf_volume));
+            input_frame.SetDataFromImage("depth", masks[i]);
+            if (score > score_threshold) {
+                if (object_tsdf_dict.find(label) == object_tsdf_dict.end()) {
+                    auto tsdf_volume = TSDFVolumes(
+                            score, voxel_size, block_resolution,
+                            est_block_count, T_frame_to_model, gpu, input_frame,
+                            raycast_mask, depth_scale, depth_max);
+                    tsdf_volume.integrateInstance(idx, 0, input_frame,
+                                                  T_frame_to_model);
+                    object_tsdf_dict.emplace(
+                            std::make_pair(label, tsdf_volume));
+                } else {
+                    auto iou = object_tsdf_dict.at(label).compute2DIoU(masks[i]);
+                    auto argmax_iou = std::distance(
+                            iou.cbegin(),
+                            std::max_element(iou.cbegin(), iou.cend()));
+
+                    if (iou[argmax_iou] > 0.7) {
+                        object_tsdf_dict.at(label).integrateInstance(
+                                idx, argmax_iou, input_frame, T_frame_to_model);
+                    } else {
+                        object_tsdf_dict.at(label).addNewInstance(
+                                score, voxel_size, block_resolution,
+                                est_block_count, T_frame_to_model, input_frame,
+                                raycast_mask);
+                    }
                 }
             }
         }
-        // if (idx > start_idx) {
-        //     auto result = model.TrackFrameToModel(input_frame, raycast_frame,
-        //                                           rgbd_cam.depth_scale_,
-        //                                           rgbd_cam.depth_max_, 0.5);
-        //     T_frame_to_model = T_frame_to_model.Matmul(result.transformation_);
-        // }
 
         // model.UpdateFramePose(idx - start_idx, T_frame_to_model);
         // input_frame.SetDataFromImage("depth", depth_t_filtered);
         // model.Integrate(input_frame, rgbd_cam.depth_scale_,
         //                 rgbd_cam.depth_max_);
-        // model.SynthesizeModelFrame(raycast_frame, rgbd_cam.depth_scale_, 0.1,
-        //                            rgbd_cam.depth_max_);
+        // model.SynthesizeModelFrame(raycast_frame, depth_scale, 0.1,
+        //                            depth_max);
 
         // for (size_t i = 0; i < class_labels.size(); i++) {
-        }
-
-        // if (idx % 25 == 0) {
-        //     visualizeModel(model);
-        // }
     }
 
-    // auto mesh = model.voxel_grid_.ExtractTriangleMesh();
-    // mesh.GetVertexNormals();
-
-    // auto mesh_legacy = mesh.ToLegacy();
-
-    // o3d::visualization::DrawGeometries(
-    //         {std::make_shared<const o3d::geometry::TriangleMesh>(mesh_legacy)});
-
-    // o3d::io::WriteTriangleMeshToPLY("../../../results/mesh_full_ICP_t.ply",
-    //                                 mesh_legacy, false, false, true, true, true,
-    //                                 true);
+    // if (idx % 25 == 0) {
+    //     visualizeModel(model);
+    // }
     return 0;
 }
+
+// auto mesh = model.voxel_grid_.ExtractTriangleMesh();
+// mesh.GetVertexNormals();
+
+// auto mesh_legacy = mesh.ToLegacy();
+
+// o3d::visualization::DrawGeometries(
+//         {std::make_shared<const o3d::geometry::TriangleMesh>(mesh_legacy)});
+
+// o3d::io::WriteTriangleMeshToPLY("../../../results/mesh_full_ICP_t.ply",
+//                                 mesh_legacy, false, false, true, true, true,
+//                                 true);
