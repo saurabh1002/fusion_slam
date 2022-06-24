@@ -12,8 +12,9 @@ namespace o3d = open3d;
 namespace datasets {
 class freiburg1_desk {
 private:
-using Image = o3d::geometry::Image;
+    using Image = o3d::geometry::Image;
     using Image_t = o3d::t::geometry::Image;
+
 public:
     explicit freiburg1_desk(const std::string& data_root_dir,
                             const YAML::Node& cfg,
@@ -36,9 +37,10 @@ public:
 };
 
 class maskrcnn {
-    private:
+private:
     using Image = o3d::geometry::Image;
     using Image_t = o3d::t::geometry::Image;
+
 public:
     explicit maskrcnn(freiburg1_desk data_fr1);
     [[nodiscard]] std::tuple<std::vector<std::string>,

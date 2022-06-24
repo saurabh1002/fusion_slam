@@ -57,7 +57,9 @@ std::vector<float> TSDFVolumes::compute2DIoU(
         auto raycast_tensor =
                 model.raycast_frame_.GetData("depth").ToFlatVector<float>();
         std::vector<int> intersection_;
+        intersection_.reserve(mask_tensor.size());
         std::vector<int> union_;
+        union_.reserve(mask_tensor.size());
         std::transform(mask_tensor.cbegin(), mask_tensor.cend(),
                        raycast_tensor.cbegin(), intersection_.begin(),
                        [](auto a, auto b) {

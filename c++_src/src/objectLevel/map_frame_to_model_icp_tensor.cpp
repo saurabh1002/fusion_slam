@@ -145,38 +145,44 @@ int main(int argc, char* argv[]) {
 
         if (!object_tsdf_dict.empty()) {
             for (auto& [key, _] : object_tsdf_dict) {
-                object_tsdf_dict.at(key).updateRaycastFrames(idx, T_frame_to_model);
+                object_tsdf_dict.at(key).updateRaycastFrames(idx,
+                                                             T_frame_to_model);
             }
         }
-
-        for (size_t i = 0; i < class_labels.size(); i++) {
-            const auto& label = class_labels[i];
-            const auto score = scores[i];
-            input_frame.SetDataFromImage("depth", masks[i]);
-            if (score > score_threshold) {
-                if (object_tsdf_dict.find(label) == object_tsdf_dict.end()) {
-                    auto tsdf_volume = TSDFVolumes(
-                            score, voxel_size, block_resolution,
-                            est_block_count, T_frame_to_model, gpu, input_frame,
-                            raycast_mask, depth_scale, depth_max);
-                    tsdf_volume.integrateInstance(idx, 0, input_frame,
-                                                  T_frame_to_model);
-                    object_tsdf_dict.emplace(
-                            std::make_pair(label, tsdf_volume));
-                } else {
-                    auto iou = object_tsdf_dict.at(label).compute2DIoU(masks[i]);
-                    auto argmax_iou = std::distance(
-                            iou.cbegin(),
-                            std::max_element(iou.cbegin(), iou.cend()));
-
-                    if (iou[argmax_iou] > 0.7) {
-                        object_tsdf_dict.at(label).integrateInstance(
-                                idx, argmax_iou, input_frame, T_frame_to_model);
+        if (class_labels.size() > 0) {
+            for (size_t i = 0; i < class_labels.size(); i++) {
+                const auto& label = class_labels[i];
+                const auto score = scores[i];
+                input_frame.SetDataFromImage("depth", masks[i]);
+                if (score > score_threshold) {
+                    if (object_tsdf_dict.find(label) ==
+                        object_tsdf_dict.end()) {
+                        auto tsdf_volume =
+                                TSDFVolumes(score, voxel_size, block_resolution,
+                                            est_block_count, T_frame_to_model,
+                                            gpu, input_frame, raycast_mask,
+                                            depth_scale, depth_max);
+                        tsdf_volume.integrateInstance(idx, 0, input_frame,
+                                                      T_frame_to_model);
+                        object_tsdf_dict.emplace(
+                                std::make_pair(label, tsdf_volume));
                     } else {
-                        object_tsdf_dict.at(label).addNewInstance(
-                                score, voxel_size, block_resolution,
-                                est_block_count, T_frame_to_model, input_frame,
-                                raycast_mask);
+                        auto iou = object_tsdf_dict.at(label).compute2DIoU(
+                                masks[i]);
+                        auto argmax_iou = std::distance(
+                                iou.cbegin(),
+                                std::max_element(iou.cbegin(), iou.cend()));
+
+                        if (iou[argmax_iou] > 0.7) {
+                            object_tsdf_dict.at(label).integrateInstance(
+                                    idx, argmax_iou, input_frame,
+                                    T_frame_to_model);
+                        } else {
+                            object_tsdf_dict.at(label).addNewInstance(
+                                    score, voxel_size, block_resolution,
+                                    est_block_count, T_frame_to_model,
+                                    input_frame, raycast_mask);
+                        }
                     }
                 }
             }
