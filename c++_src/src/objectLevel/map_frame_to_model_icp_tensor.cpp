@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
     auto est_block_count = config["TSDF"]["est_block_count"].as<int>();
     auto score_threshold = config["MaskRCNN"]["score_threshold"].as<float>();
 
-    auto gpu = o3d::core::Device("CUDA:0,1,2,3");
+    auto gpu = o3d::core::Device("CPU:0");
     auto cpu = o3d::core::Device("CPU:0");
 
     auto dataset =
@@ -115,10 +115,11 @@ int main(int argc, char* argv[]) {
             depth_t.GetRows(), depth_t.GetCols(), rgbd_cam.intrinsics_t_, gpu);
 
     auto start_idx = 200;
-    for (std::size_t idx = 0; idx < dataset.size() - start_idx; idx++) {
+    auto end_idx = 300;
+    for (std::size_t idx = 0; idx < end_idx - start_idx; idx++) {
         bar.set_option(progress::option::PostfixText{
                 std::to_string(idx) + "/" +
-                std::to_string(dataset.size() - start_idx)});
+                std::to_string(end_idx - start_idx)});
         bar.tick();
 
         auto [timestamp, _, rgb_t, depth_t] = dataset.At_t(idx + start_idx);
@@ -136,19 +137,19 @@ int main(int argc, char* argv[]) {
                     rgbd_cam.depth_max_, 0.5);
             T_frame_to_model = T_frame_to_model.Matmul(result.transformation_);
         }
-
         global_model.UpdateFramePose(idx, T_frame_to_model);
         input_frame.SetDataFromImage("depth", depth_t_filtered);
         global_model.Integrate(input_frame, depth_scale, depth_max);
         global_model.SynthesizeModelFrame(raycast_frame, depth_scale, 0.1,
                                           depth_max);
-
-        if (!object_tsdf_dict.empty()) {
-            for (auto& [key, _] : object_tsdf_dict) {
-                object_tsdf_dict.at(key).updateRaycastFrames(idx,
-                                                             T_frame_to_model);
-            }
-        }
+        // if (!object_tsdf_dict.empty()) {
+        //     std::cout << "Debug 5a \n\n" << std::endl;
+        //     for (auto& [key, _] : object_tsdf_dict) {
+        //         object_tsdf_dict.at(key).updateRaycastFrames(idx,
+        //                                                      T_frame_to_model);
+        //     }
+        // }
+        // std::cout << "Debug 6 \n\n" << std::endl;
         if (class_labels.size() > 0) {
             for (size_t i = 0; i < class_labels.size(); i++) {
                 const auto& label = class_labels[i];
@@ -157,11 +158,11 @@ int main(int argc, char* argv[]) {
                 if (score > score_threshold) {
                     if (object_tsdf_dict.find(label) ==
                         object_tsdf_dict.end()) {
-                        auto tsdf_volume =
-                                TSDFVolumes(score, voxel_size, block_resolution,
-                                            est_block_count, T_frame_to_model,
-                                            gpu, input_frame, raycast_mask,
-                                            depth_scale, depth_max);
+                        auto tsdf_volume = TSDFVolumes(
+                                idx, score, voxel_size, block_resolution,
+                                est_block_count, T_frame_to_model, gpu,
+                                input_frame, raycast_mask, depth_scale,
+                                depth_max);
                         tsdf_volume.integrateInstance(idx, 0, input_frame,
                                                       T_frame_to_model);
                         object_tsdf_dict.emplace(
@@ -173,13 +174,14 @@ int main(int argc, char* argv[]) {
                                 iou.cbegin(),
                                 std::max_element(iou.cbegin(), iou.cend()));
 
-                        if (iou[argmax_iou] > 0.7) {
+                        std::cout << iou[argmax_iou] << std::endl;
+                        if (iou[argmax_iou] > 0.35) {
                             object_tsdf_dict.at(label).integrateInstance(
                                     idx, argmax_iou, input_frame,
                                     T_frame_to_model);
                         } else {
                             object_tsdf_dict.at(label).addNewInstance(
-                                    score, voxel_size, block_resolution,
+                                    idx, score, voxel_size, block_resolution,
                                     est_block_count, T_frame_to_model,
                                     input_frame, raycast_mask);
                         }
@@ -198,9 +200,23 @@ int main(int argc, char* argv[]) {
         // for (size_t i = 0; i < class_labels.size(); i++) {
     }
 
-    // if (idx % 25 == 0) {
-    //     visualizeModel(model);
-    // }
+    for (auto& [label, val] : object_tsdf_dict) {
+        auto models = val.getModels();
+        int inst_id = 0;
+        for (auto model : models) {
+            auto mesh = model.model_.voxel_grid_.ExtractTriangleMesh();
+            mesh.GetVertexNormals();
+            auto mesh_legacy = mesh.ToLegacy();
+            o3d::visualization::DrawGeometries(
+                    {std::make_shared<const o3d::geometry::TriangleMesh>(
+                            mesh_legacy)});
+
+        std::string mesh_name = label + "_" + std::to_string(inst_id++) + ".ply";
+            o3d::io::WriteTriangleMeshToPLY(
+                    "../../../results/object_level_icp/" + mesh_name, mesh_legacy, false,
+                    false, true, true, true, true);
+        }
+    }
     return 0;
 }
 

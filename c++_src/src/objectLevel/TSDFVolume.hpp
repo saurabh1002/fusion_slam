@@ -20,7 +20,8 @@ struct FusionModel {
 
 class TSDFVolumes {
 public:
-    TSDFVolumes(float class_score,
+    TSDFVolumes(int frame_id,
+                float class_score,
                 float voxel_size,
                 int block_resolution,
                 int est_block_count,
@@ -36,7 +37,12 @@ public:
         models_[idx].nonexistence_count_++;
     }
 
-    void addNewInstance(float class_score,
+    std::vector<FusionModel> getModels(){
+        return models_;
+    }
+    
+    void addNewInstance(int frame_id,
+                        float class_score,
                         float voxel_size,
                         int block_resolution,
                         int est_block_count,
@@ -47,7 +53,7 @@ public:
     void integrateInstance(int frame_id,
                            int inst_id,
                            Frame input_frame,
-                           Tensor T_frame_to_Model);
+                           Tensor T_frame_to_model);
     void updateClassProbability(float detection_score);
 
     std::vector<float> compute2DIoU(
